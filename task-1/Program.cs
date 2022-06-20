@@ -1,14 +1,16 @@
 ﻿using System;
 using System.Globalization;
-using System.Linq;
 using System.Text.RegularExpressions;
-using System.Threading;
+using System.Timers;
 
 namespace dotnet_course
 {
     class Program
     {
-        private static Timer _timer = null;
+        static Timer _timer = new Timer();
+        static DateTime _birthdayDate = new DateTime();
+        static DateTime _nextBirthday = new DateTime();
+        static int _age = 0;
 
         static void Main(string[] args)
         {
@@ -20,8 +22,9 @@ namespace dotnet_course
 
             Match birthdayMatch;
             Regex separator = new Regex(@"\W");
-            DateTime birthdayDate = new DateTime();
             Regex birthdayRegex = new Regex(@"\d{2}\W\d{2}\W\d{4}");
+
+            DateTime today = DateTime.Now;
 
             Console.WriteLine("Введите имя, фамилию, дату и год рождения(в формате dd-mm-yyyy).");
             personInfo = Console.ReadLine();
@@ -41,52 +44,61 @@ namespace dotnet_course
 
             birthdayMatch = birthdayRegex.Match(personInfo);
             parsedBirthday = separator.Replace(birthdayMatch.Value, "-");
-            DateTime.TryParseExact(parsedBirthday, "dd-MM-yyyy", CultureInfo.CurrentCulture, DateTimeStyles.None, out birthdayDate);
+            DateTime.TryParseExact(parsedBirthday, "dd-MM-yyyy", CultureInfo.CurrentCulture, DateTimeStyles.None, out _birthdayDate);
+            _age = GetAge(_birthdayDate);
+            _nextBirthday = GetNextBirthDay(_birthdayDate);
+
             personInfo = birthdayRegex.Replace(personInfo, "");
             parsedInfo = Regex.Split(personInfo, @"\W");
             firstName = parsedInfo[0];
             lastName = parsedInfo[1];
 
-            Console.WriteLine($"Имя: {firstName}");
-            Console.WriteLine($"Фамилия: {lastName}");
-            Console.WriteLine($"Родился: {birthdayDate.ToLongDateString()}");
-            Console.WriteLine($"Кол-во полных лет: {GetAge(birthdayDate)}");
-            _timer = new Timer(TimerToNextBirthday, birthdayDate, 0, 1000);
+            
+
+            Console.WriteLine($"Имя: { firstName }");
+            Console.WriteLine($"Фамилия: { lastName }");
+            Console.WriteLine($"Родился: { _birthdayDate.ToLongDateString() }");
+            Console.WriteLine($"Кол-во полных лет: { _age }");
+
+            _timer.Elapsed += TimerToNextBirthday;
+            _timer.Interval = 1000;
+            _timer.Start();
             Console.ReadLine();
         }
 
-        private static void TimerToNextBirthday(Object birthday)
+        private static void TimerToNextBirthday(object o, ElapsedEventArgs e)
         {
-            DateTime parsedBirthday = (DateTime)birthday;
+            TimeSpan countdownToNextBirthday = _nextBirthday - e.SignalTime;
+
+            if ((int)countdownToNextBirthday.TotalSeconds == 0)
+            {
+                Console.WriteLine($"Поздравляем вам исполнилось: { _age + 1 }");
+                _timer.Stop();
+            }
+
+            Console.WriteLine($"Следующий день рождение через: { countdownToNextBirthday.Days } days { countdownToNextBirthday.Hours } hours { countdownToNextBirthday.Minutes } minutes { countdownToNextBirthday.Seconds } seconds.");
+            Console.SetCursorPosition(0, Console.CursorTop - 1);
+        }
+
+        private static DateTime GetNextBirthDay(DateTime birthdate)
+        {
             DateTime today = DateTime.Now;
-            DateTime nextBirthday = parsedBirthday.AddYears(today.Year - parsedBirthday.Year);
+            DateTime nextBirthday = birthdate.AddYears(today.Year - birthdate.Year);
 
             if (nextBirthday < today)
             {
                 if (!DateTime.IsLeapYear(nextBirthday.Year + 1))
                     nextBirthday = nextBirthday.AddYears(1);
                 else
-                    nextBirthday = new DateTime(nextBirthday.Year + 1, parsedBirthday.Month, parsedBirthday.Day);
+                    nextBirthday = new DateTime(nextBirthday.Year + 1, birthdate.Month, birthdate.Day);
             }
 
-            TimeSpan countdownToNextBirthday = nextBirthday - today;
-
-            if (parsedBirthday.Day == today.Day && parsedBirthday.Month == today.Month)
-            {
-                Console.WriteLine($"Поздравляем вам исполнилось: {GetAge(parsedBirthday)}");
-                _timer.Change(Timeout.Infinite, Timeout.Infinite);
-            }
-            else
-            {
-                Console.WriteLine("Следующий день рождение через: " + countdownToNextBirthday.Days + " days " + countdownToNextBirthday.Hours + " hours " + countdownToNextBirthday.Minutes + " minutes " + countdownToNextBirthday.Seconds + " seconds.");
-                Console.SetCursorPosition(0, Console.CursorTop - 1);
-            }
+            return nextBirthday;
         }
 
         private static int GetAge(DateTime birthdate)
         {
             DateTime today = DateTime.Today;
-
             int age = today.Year - birthdate.Year;
 
             if (birthdate.Date > today.AddYears(-age))
